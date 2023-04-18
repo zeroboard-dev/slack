@@ -595,3 +595,64 @@ func (api *Client) UploadFileV2Context(ctx context.Context, params UploadFileV2P
 
 	return &c.Files[0], nil
 }
+
+// UploadFileV2 uploads file to a given slack channel using 3 steps -
+//  1. Get an upload URL using files.getUploadURLExternal API
+//  2. Send the file as a post to the URL provided by slack
+//  3. Complete the upload and share it to the specified channel using files.completeUploadExternal
+func (api *Client) UploadFileForZeroboard(params UploadFileV2Parameters) (*File, error) {
+	return api.UploadFileForZeroboardContext(context.Background(), params)
+}
+
+// UploadFileV2 uploads file to a given slack channel using 3 steps with a custom context -
+//  1. Get an upload URL using files.getUploadURLExternal API
+//  2. Send the file as a post to the URL provided by slack
+//  3. Complete the upload and share it to the specified channel using files.completeUploadExternal
+func (api *Client) UploadFileForZeroboardContext(ctx context.Context, params UploadFileV2Parameters) (file *File, err error) {
+	if params.Filename == "" {
+		return nil, fmt.Errorf("file.upload.v2: filename cannot be empty")
+	}
+	if params.FileSize == 0 {
+		return nil, fmt.Errorf("file.upload.v2: file size cannot be 0")
+	}
+	if params.Channel == "" {
+		return nil, fmt.Errorf("file.upload.v2: channel cannot be empty")
+	}
+	u, err := api.getUploadURLExternal(ctx, getUploadURLExternalParameters{
+		altText:     params.AltTxt,
+		fileName:    params.Filename,
+		fileSize:    params.FileSize,
+		snippetText: params.SnippetText,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	file, err = api.uploadToURLForZeroboard(ctx, uploadToURLParameters{
+		UploadURL: u.UploadURL,
+		Reader:    params.Reader,
+		File:      params.File,
+		Content:   params.Content,
+		Filename:  params.Filename,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return file, nil
+}
+
+// uploadToURL uploads the file to the provided URL using post method
+func (api *Client) uploadToURLForZeroboard(ctx context.Context, params uploadToURLParameters) (file *File, err error) {
+	values := url.Values{}
+	response := &fileResponseFull{}
+	if params.Content != "" {
+		values.Add("content", params.Content)
+		values.Add("token", api.token)
+		err = postForm(ctx, api.httpclient, params.UploadURL, values, nil, api)
+	} else if params.File != "" {
+		err = postLocalWithMultipartResponse(ctx, api.httpclient, params.UploadURL, params.File, "file", api.token, values, response, api)
+	} else if params.Reader != nil {
+		err = postWithMultipartResponse(ctx, api.httpclient, params.UploadURL, params.Filename, "file", api.token, values, params.Reader, response, api)
+	}
+	return &response.File, err
+}
