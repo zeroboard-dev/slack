@@ -186,14 +186,14 @@ type FileSummary struct {
 	Title string `json:"title"`
 }
 
-type completeUploadExternalParameters struct {
+type CompleteUploadExternalParameters struct {
 	title           string
 	channel         string
 	initialComment  string
 	threadTimestamp string
 }
 
-type completeUploadExternalResponse struct {
+type CompleteUploadExternalResponse struct {
 	SlackResponse
 	Files []FileSummary `json:"files"`
 }
@@ -508,7 +508,7 @@ func (api *Client) uploadToURL(ctx context.Context, params uploadToURLParameters
 }
 
 // completeUploadExternal once files are uploaded, this completes the upload and shares it to the specified channel
-func (api *Client) completeUploadExternal(ctx context.Context, fileID string, params completeUploadExternalParameters) (file *completeUploadExternalResponse, err error) {
+func (api *Client) completeUploadExternal(ctx context.Context, fileID string, params CompleteUploadExternalParameters) (file *CompleteUploadExternalResponse, err error) {
 	request := []FileSummary{{ID: fileID, Title: params.title}}
 	requestBytes, err := json.Marshal(request)
 	if err != nil {
@@ -526,7 +526,7 @@ func (api *Client) completeUploadExternal(ctx context.Context, fileID string, pa
 	if params.threadTimestamp != "" {
 		values.Add("thread_ts", params.threadTimestamp)
 	}
-	response := &completeUploadExternalResponse{}
+	response := &CompleteUploadExternalResponse{}
 	err = api.postMethod(ctx, "files.completeUploadExternal", values, response)
 	if err != nil {
 		return nil, err
@@ -580,7 +580,7 @@ func (api *Client) UploadFileV2Context(ctx context.Context, params UploadFileV2P
 		return nil, err
 	}
 
-	c, err := api.completeUploadExternal(ctx, u.FileID, completeUploadExternalParameters{
+	c, err := api.completeUploadExternal(ctx, u.FileID, CompleteUploadExternalParameters{
 		title:           params.Title,
 		channel:         params.Channel,
 		initialComment:  params.InitialComment,
@@ -600,7 +600,7 @@ func (api *Client) UploadFileV2Context(ctx context.Context, params UploadFileV2P
 //  1. Get an upload URL using files.getUploadURLExternal API
 //  2. Send the file as a post to the URL provided by slack
 //  3. Complete the upload and share it to the specified channel using files.completeUploadExternal
-func (api *Client) UploadFileForZeroboard(params UploadFileV2Parameters) (*File, error) {
+func (api *Client) UploadFileForZeroboard(params UploadFileV2Parameters) (*FileSummary, error) {
 	return api.UploadFileForZeroboardContext(context.Background(), params)
 }
 
@@ -608,7 +608,7 @@ func (api *Client) UploadFileForZeroboard(params UploadFileV2Parameters) (*File,
 //  1. Get an upload URL using files.getUploadURLExternal API
 //  2. Send the file as a post to the URL provided by slack
 //  3. Complete the upload and share it to the specified channel using files.completeUploadExternal
-func (api *Client) UploadFileForZeroboardContext(ctx context.Context, params UploadFileV2Parameters) (file *File, err error) {
+func (api *Client) UploadFileForZeroboardContext(ctx context.Context, params UploadFileV2Parameters) (file *FileSummary, err error) {
 	if params.Filename == "" {
 		return nil, fmt.Errorf("file.upload.v2: filename cannot be empty")
 	}
@@ -628,7 +628,7 @@ func (api *Client) UploadFileForZeroboardContext(ctx context.Context, params Upl
 		return nil, err
 	}
 
-	file, err = api.uploadToURLForZeroboard(ctx, uploadToURLParameters{
+	err = api.uploadToURLForZeroboard(ctx, uploadToURLParameters{
 		UploadURL: u.UploadURL,
 		Reader:    params.Reader,
 		File:      params.File,
@@ -638,21 +638,52 @@ func (api *Client) UploadFileForZeroboardContext(ctx context.Context, params Upl
 	if err != nil {
 		return nil, err
 	}
-	return file, nil
+	return &FileSummary{
+		ID:    u.FileID,
+		Title: params.Filename,
+	}, nil
 }
 
 // uploadToURL uploads the file to the provided URL using post method
-func (api *Client) uploadToURLForZeroboard(ctx context.Context, params uploadToURLParameters) (file *File, err error) {
+func (api *Client) uploadToURLForZeroboard(ctx context.Context, params uploadToURLParameters) (err error) {
 	values := url.Values{}
-	response := &fileResponseFull{}
 	if params.Content != "" {
 		values.Add("content", params.Content)
 		values.Add("token", api.token)
 		err = postForm(ctx, api.httpclient, params.UploadURL, values, nil, api)
 	} else if params.File != "" {
-		err = postLocalWithMultipartResponse(ctx, api.httpclient, params.UploadURL, params.File, "file", api.token, values, response, api)
+		err = postLocalWithMultipartResponse(ctx, api.httpclient, params.UploadURL, params.File, "file", api.token, values, nil, api)
 	} else if params.Reader != nil {
-		err = postWithMultipartResponse(ctx, api.httpclient, params.UploadURL, params.Filename, "file", api.token, values, params.Reader, response, api)
+		err = postWithMultipartResponse(ctx, api.httpclient, params.UploadURL, params.Filename, "file", api.token, values, params.Reader, nil, api)
 	}
-	return &response.File, err
+	return err
+}
+
+// completeUploadExternal once files are uploaded, this completes the upload and shares it to the specified channel
+func (api *Client) CompleteUploadExternalForZeroboard(ctx context.Context, request []FileSummary, params CompleteUploadExternalParameters) (file *CompleteUploadExternalResponse, err error) {
+	requestBytes, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	values := url.Values{
+		"token":      {api.token},
+		"files":      {string(requestBytes)},
+		"channel_id": {params.channel},
+	}
+
+	if params.initialComment != "" {
+		values.Add("initial_comment", params.initialComment)
+	}
+	if params.threadTimestamp != "" {
+		values.Add("thread_ts", params.threadTimestamp)
+	}
+	response := &CompleteUploadExternalResponse{}
+	err = api.postMethod(ctx, "files.completeUploadExternal", values, response)
+	if err != nil {
+		return nil, err
+	}
+	if response.Err() != nil {
+		return nil, response.Err()
+	}
+	return response, nil
 }

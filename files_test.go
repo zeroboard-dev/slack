@@ -228,7 +228,7 @@ func urlFileUploadHandler(rw http.ResponseWriter, r *http.Request) {
 
 func completeURLUpload(rw http.ResponseWriter, r *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
-	response, _ := json.Marshal(completeUploadExternalResponse{
+	response, _ := json.Marshal(CompleteUploadExternalResponse{
 		Files: []FileSummary{
 			{
 				ID:    "RandomID",
