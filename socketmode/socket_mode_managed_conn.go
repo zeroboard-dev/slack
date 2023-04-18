@@ -12,10 +12,10 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/slack-go/slack"
-	"github.com/slack-go/slack/internal/backoff"
-	"github.com/slack-go/slack/internal/timex"
-	"github.com/slack-go/slack/slackevents"
+	"github.com/zeroboard-dev/slack"
+	"github.com/zeroboard-dev/slack/internal/backoff"
+	"github.com/zeroboard-dev/slack/internal/timex"
+	"github.com/zeroboard-dev/slack/slackevents"
 )
 
 // Run is a blocking function that connects the Slack Socket Mode API and handles all incoming
@@ -122,7 +122,7 @@ func (smc *Client) run(ctx context.Context, connectionCount int) error {
 		}
 	}()
 
-	// Need to wait for runMessageReceiver to avoid panic described in https://github.com/slack-go/slack/issues/1125
+	// Need to wait for runMessageReceiver to avoid panic described in https://github.com/zeroboard-dev/slack/issues/1125
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
