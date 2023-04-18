@@ -660,7 +660,7 @@ func (api *Client) uploadToURLForZeroboard(ctx context.Context, params uploadToU
 }
 
 // completeUploadExternal once files are uploaded, this completes the upload and shares it to the specified channel
-func (api *Client) CompleteUploadExternalForZeroboard(ctx context.Context, request []FileSummary, params CompleteUploadExternalParameters) (file *CompleteUploadExternalResponse, err error) {
+func (api *Client) CompleteUploadExternalForZeroboard(ctx context.Context, request []*FileSummary, params CompleteUploadExternalParameters) (file *CompleteUploadExternalResponse, err error) {
 	requestBytes, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
